@@ -1,0 +1,72 @@
+name: Build a51 OneUI Kernel
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: ['OneUI']
+        device: ['a51']
+    name: "Build for ${{matrix.device}} (${{matrix.build_type}})"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          
+      - name: Install WeebX Clang
+        run: |
+          wget https://github.com/XSans0/WeebX-Clang/releases/download/WeebX-Clang-18.1.8-release/WeebX-Clang-18.1.8.tar.gz -O "weebx-clang.tar.gz"
+          rm -rf toolchain && mkdir toolchain && tar -xvf weebx-clang.tar.gz -C toolchain && rm -rf weebx-clang.tar.gz
+
+      - name: Patch SusFS
+        run: |
+          # Apply New SusFS Patch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/b19a27ceed937d961a7236e4adc85b0885d1f03e.patch | patch -p1 -F 3
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/4990033cc5d0a05e237a63832c1e4e73cccbd396.patch | patch -p1 -F 3
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/a21bd1ce75530143b1044b0873e01e5b1d55344d.patch | patch -p1 -F 3
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/cb156baa8ab03b8973874c05bb522d6ba98e73d5.patch | patch -p1 -F 3
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/3b4aba477404c32bc03b98b84e20664369ac6e7f.patch | patch -p1 -F 3
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/6cd98bc0b8b1e342b1858f8bf80ac77f84b60a14.patch | patch -p1 -F 3
+          # Apply New SusFS KSUN Patch
+          cd KernelSU
+          curl -Ls https://github.com/sidex15/KernelSU-Next/commit/c623bb233be305f7dac7135d198d6b375aa33410.patch | patch -p1 -F 3
+          cd ./kernel
+          git submodule update --init --recursive
+          BASE_VERSION=10200
+          KSU_VERSION=$(expr $(/usr/bin/git rev-list --count HEAD) "+" $BASE_VERSION)
+          echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
+          sed -i "s/DKSU_VERSION=11998/DKSU_VERSION=${KSU_VERSION}/" Makefile
+
+      - name: Build
+        run: |
+          BUILD_TYPE_LOWER=$(echo "${{matrix.build_type}}" | tr '[:upper:]' '[:lower:]')
+          python build_kernel.py --$BUILD_TYPE_LOWER --target=${{matrix.device}}
+          mv GrassKernel_*_*_*.zip "GrassKernel_${{matrix.device}}_${{matrix.build_type}}-KSUN.zip"
+
+      - name: Show Logs
+        run: |
+          shopt -s nullglob
+          for f in *.log; do echo "=== $f ==="; cat "$f"; done
+
+      - name: Upload Kernel
+        if: success()
+        uses: actions/upload-artifact@main
+        with:
+          name: GrassKernel_${{matrix.device}}_${{matrix.build_type}}-KSUN
+          path: "GrassKernel_${{matrix.device}}_${{matrix.build_type}}-KSUN.zip"
+          if-no-files-found: error
+
+      - name: Upload Logs
+        if: failure()
+        uses: actions/upload-artifact@main
+        with:
+          name: GrassKernel_${{matrix.device}}_${{matrix.build_type}}-LOG
+          path: "*.log"
+          if-no-files-found: warn
