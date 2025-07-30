@@ -36,6 +36,7 @@ jobs:
           curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/6cd98bc0b8b1e342b1858f8bf80ac77f84b60a14.patch | patch -p1 -F 3
           # Apply New SusFS KSUN Patch
           cd KernelSU
+          curl -Ls https://raw.githubusercontent.com/WildKernels/kernel_patches/refs/heads/main/next/susfs_fix_patches/v1.5.9/fix_kernel_compat.c.patch | patch -p1 -F 3
           curl -Ls https://github.com/sidex15/KernelSU-Next/commit/c623bb233be305f7dac7135d198d6b375aa33410.patch | patch -p1 -F 3
           cd ./kernel
           git submodule update --init --recursive
